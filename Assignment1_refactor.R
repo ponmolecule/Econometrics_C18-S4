@@ -21,6 +21,8 @@ EnsurePackage("XML")
 EnsurePackage("RCurl")
 EnsurePackage("quantmod")
 EnsurePackage("PerformanceAnalytics") 
+EnsurePackage("tidyverse")
+EnsurePackage("ggplot2")
 
 Symbols<- c("MMM", "GPC", "JNJ", "LOW", "PG")
 chooseStocks<-function(Symbols){
