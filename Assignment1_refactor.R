@@ -17,10 +17,10 @@ EnsurePackage<-function(x){
  }
 }
 
-EnsurePackage(XML) 
-EnsurePackage(quantmod)
-EnsurePackage(PerformanceAnalytics)
-EnsurePackage(RCurl)
+EnsurePackage("XML")
+EnsurePackage("RCurl")
+EnsurePackage("quantmod")
+EnsurePackage("PerformanceAnalytics") 
 
 Symbols<- c("MMM", "GPC", "JNJ", "LOW", "PG")
 chooseStocks<-function(Symbols){
