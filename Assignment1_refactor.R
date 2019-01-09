@@ -23,6 +23,11 @@ EnsurePackage("quantmod")
 EnsurePackage("PerformanceAnalytics") 
 EnsurePackage("tidyverse")
 EnsurePackage("ggplot2")
+EnsurePackage("stats")
+EnsurePackage("tseries")
+EnsurePackage("forecast")
+EnsurePackage("kdensity")
+EnsurePackage("corrplot") 
 
 Symbols<- c("MMM", "GPC", "JNJ", "LOW", "PG")
 chooseStocks<-function(Symbols){
