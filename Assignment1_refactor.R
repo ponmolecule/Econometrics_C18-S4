@@ -8,11 +8,19 @@
 #Download and calculate daily and log returns of the 5 stocks over the period under study
 #################################################################################################################
 
-library(XML) 
-library(quantmod)
-library(PerformanceAnalytics)
-library(RCurl)
+EnsurePackage<-function(x){
+ x<-as.character(x)
+ if (!require(x, character.only=TRUE))
+ {
+  install.packages(pkgs=x, repos="http://cran.r-project.org")
+   require(x, character.only=TRUE)
+ }
+}
 
+EnsurePackage(XML) 
+EnsurePackage(quantmod)
+EnsurePackage(PerformanceAnalytics)
+EnsurePackage(RCurl)
 
 Symbols<- c("MMM", "GPC", "JNJ", "LOW", "PG")
 chooseStocks<-function(Symbols){
