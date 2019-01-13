@@ -40,13 +40,13 @@ chooseStocks<-function(Symbols){
   { 
     ticker<-combn(Symbols, length(Symbols), FUN=NULL, simplify=FALSE)
     Stocks = lapply(ticker[[1]], function(sym) {
-      getSymbols(sym, from="2009-01-01", auto.assign=FALSE)[,6]
+      getSymbols(sym, from="2009-01-01", to="2018-12-31", auto.assign=FALSE)[,6]
     })
     returns = lapply(ticker[[1]], function(sym) {
-      dailyReturn(na.omit(getSymbols(sym, from="2009-01-01", auto.assign=FALSE)[,6]))
+      dailyReturn(na.omit(getSymbols(sym, from="2009-01-01", to="2018-12-31", auto.assign=FALSE)[,6]))
     })
     log_returns= lapply(ticker[[1]], function(sym) {
-      dailyReturn(na.omit(getSymbols(sym, from="2009-01-01", auto.assign=FALSE)[,6]), type='log')
+      dailyReturn(na.omit(getSymbols(sym, from="2009-01-01", to="2018-12-31", auto.assign=FALSE)[,6]), type='log')
     })
     
     portfolio<-cbind(do.call(cbind, Stocks), do.call(cbind, returns), do.call(cbind, log_returns))
