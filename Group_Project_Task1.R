@@ -24,6 +24,8 @@ EnsurePackage("tseries")
 EnsurePackage("forecast")
 EnsurePackage("kdensity")
 EnsurePackage("corrplot")
+EnsurePackage("readxl")
+
 
 
 ################################################################################################################################# 
@@ -366,3 +368,163 @@ qqnorm(PG_std, main = "PG Normal Q-Q Plot",
 # Add a line from 25th to 75th quantiles
 qqline(PG_std, datax = F, 
        distribution = qnorm, probs = c( 0.25, 0.75), qtype = 7)
+
+
+# # create scatterplots of log daily returns
+# Set 1 MMM
+plot(DailyData$LDR_MMM, DailyData$LDR_GPC,xlab="MMM", ylab="GPC") 
+plot(DailyData$LDR_MMM, DailyData$LDR_JNJ,xlab="MMM", ylab="JNJ") 
+plot(DailyData$LDR_MMM, DailyData$LDR_LOW,xlab="MMM", ylab="LOW") 
+plot(DailyData$LDR_MMM, DailyData$LDR_PG,xlab="MMM", ylab="PG") 
+
+# Set 2
+plot(DailyData$LDR_GPC, DailyData$LDR_JNJ,xlab="GPC", ylab="JNJ") 
+plot(DailyData$LDR_GPC, DailyData$LDR_LOW,xlab="GPC", ylab="LOW") 
+plot(DailyData$LDR_GPC, DailyData$LDR_PG,xlab="GPC", ylab="PG") 
+
+# set 3
+plot(DailyData$LDR_JNJ, DailyData$LDR_LOW,xlab="JNJ", ylab="LOW") 
+plot(DailyData$LDR_JNJ, DailyData$LDR_PG,xlab="JNJ", ylab="PG") 
+# Set 4
+plot(DailyData$LDR_LOW, DailyData$LDR_PG, xlab="LOW", ylab="PG") 
+
+##############################################
+# Correlation Matrix
+
+# Creata a data set with just data to be correlated
+# i.e. Log Returns
+CorData = cbind(DailyData$LDR_MMM, DailyData$LDR_GPC, 
+                DailyData$LDR_JNJ, DailyData$LDR_LOW, DailyData$LDR_PG)
+
+pairs(CorData, labels = c("MMM", "GPC", "JNJ", "LOW","PG"))
+#Cordata = rbind(c("MMM", "GPC", "JNJ" , "LOW", "PG"), CorData)
+# Calculate Correlation Matrix
+cor(CorData)
+
+# Create data for Correlation Plot
+for_cor_plot = cor(CorData)
+
+# Plot it
+corrplot(for_cor_plot)
+
+#################################
+# Time series Analysis
+#################################
+
+LDR_MMM_TS = ts(DailyData$LDR_MMM)
+LDR_GPC_TS = ts(DailyData$LDR_GPC)
+LDR_JNJ_TS = ts(DailyData$LDR_JNJ)
+LDR_LOW_TS = ts(DailyData$LDR_LOW)
+LDR_PG_TS = ts(DailyData$LDR_PG)
+#
+#head(LDR_MMM_TS) # For Testing
+# 
+# 
+# 
+# # Construct the ACF 
+#
+acf(LDR_MMM_TS)
+acf(LDR_GPC_TS)
+acf(LDR_JNJ_TS)
+acf(LDR_LOW_TS)
+acf(LDR_PG_TS)
+# # acf(CPI_percent_change_truncated)
+# 
+# # Now Construct the partial autocorrelation of the two objects
+# 
+#
+pacf(LDR_MMM_TS)
+pacf(LDR_GPC_TS)
+pacf(LDR_JNJ_TS)
+pacf(LDR_LOW_TS)
+pacf(LDR_PG_TS)
+# 
+# 
+# conduct formal staitonary tests using
+# Augmented Dickey Fuller (adf) test
+# test for a null of non stationary v stationsry
+# 
+adf.test(LDR_MMM_TS)
+adf.test(LDR_GPC_TS)
+adf.test(LDR_JNJ_TS)
+adf.test(LDR_LOW_TS)
+adf.test(LDR_PG_TS)
+
+# 
+# Conduct KPSS tests
+# This is null stationary v no stationary
+
+kpss.test(LDR_MMM_TS)
+kpss.test(LDR_GPC_TS)
+kpss.test(LDR_JNJ_TS)
+kpss.test(LDR_LOW_TS)
+kpss.test(LDR_PG_TS)
+
+# 
+# # Fit a sample AR model with 12 Lags, no differencing and no moving average
+# # terms - i,e, an ARIMA(12,0,0) MODEL
+# 
+AR_model_MMM = arima(window(LDR_MMM_TS),
+                 order=c(1,2,2), method = "ML")
+summary(AR_model_MMM)
+
+AR_model_GPC = arima(window(LDR_GPC_TS),
+                     order=c(1,2,1), method = "ML")
+summary(AR_model_GPC)
+
+AR_model_JNJ = arima(window(LDR_JNJ_TS),
+                     order=c(1,2,4), method = "ML")
+summary(AR_model_JNJ)
+
+AR_model_LOW = arima(window(LDR_LOW_TS),
+                     order=c(1,2,4), method = "ML")
+summary(AR_model_LOW)
+
+AR_model_PG = arima(window(LDR_PG_TS),
+                     order=c(1,2,2), method = "ML")
+summary(AR_model_PG)
+
+# ets(LDR_MMM_TS, model = "ZZZ")
+# # Conduct a Box TEst
+# 
+Box.test(AR_model_MMM$residuals, lag = 1)
+Box.test(AR_model_GPC$residuals, lag = 1)
+Box.test(AR_model_JNJ$residuals, lag = 1)
+Box.test(AR_model_LOW$residuals, lag = 1)
+Box.test(AR_model_PG$residuals, lag = 1)
+# 
+# 
+# AR_model = ar(window(US_GDP_Data_TS, start=1960, end= 2017),
+#               order = 12, method = "mle")
+AR_forecast_MMM = predict(AR_model_MMM,n.ahead = 72, se.fit = TRUE)
+AR_forecast_GPC = predict(AR_model_GPC,n.ahead = 72, se.fit = TRUE)
+AR_forecast_JNJ = predict(AR_model_JNJ,n.ahead = 72, se.fit = TRUE)
+AR_forecast_LOW = predict(AR_model_LOW,n.ahead = 72, se.fit = TRUE)
+AR_forecast_PG = predict(AR_model_PG,n.ahead = 72, se.fit = TRUE)
+#head(AR_forecast_MMM)
+# # Plot predicted values and SE of predicted values
+# 
+plot(window(LDR_MMM_TS, start=2000))
+lines(AR_forecast_MMM$pred, col="blue")
+lines(AR_forecast_MMM$pred + 2*AR_forecast_MMM$se, col="cornflowerblue", lty='dashed')
+lines(AR_forecast_MMM$pred - 2*AR_forecast_MMM$se, col="cornflowerblue", lty='dashed')
+# 
+plot(window(LDR_GPC_TS, start=2000))
+lines(AR_forecast_GPC$pred, col="blue")
+lines(AR_forecast_GPC$pred + 2*AR_forecast_GPC$se, col="cornflowerblue", lty='dashed')
+lines(AR_forecast_GPC$pred - 2*AR_forecast_GPC$se, col="cornflowerblue", lty='dashed')
+# 
+plot(window(LDR_JNJ_TS, start=2000))
+lines(AR_forecast_JNJ$pred, col="blue")
+lines(AR_forecast_JNJ$pred + 2*AR_forecast_JNJ$se, col="cornflowerblue", lty='dashed')
+lines(AR_forecast_JNJ$pred - 2*AR_forecast_JNJ$se, col="cornflowerblue", lty='dashed')
+# 
+plot(window(LDR_LOW_TS, start=2000))
+lines(AR_forecast_LOW$pred, col="blue")
+lines(AR_forecast_LOW$pred + 2*AR_forecast_LOW$se, col="cornflowerblue", lty='dashed')
+lines(AR_forecast_LOW$pred - 2*AR_forecast_LOW$se, col="cornflowerblue", lty='dashed')
+# 
+plot(window(LDR_PG_TS, start=2000))
+lines(AR_forecast_PG$pred, col="blue")
+lines(AR_forecast_PG$pred + 2*AR_forecast_PG$se, col="cornflowerblue", lty='dashed')
+lines(AR_forecast_PG$pred - 2*AR_forecast_PG$se, col="cornflowerblue", lty='dashed')
