@@ -1,0 +1,516 @@
+# WQU Econometrics
+# Task 2: Group Project Assignment Part 3.2.1
+#
+# Volatility Analysis
+#
+# Load Packages
+EnsurePackage<-function(x){
+  x<-as.character(x)
+  if (!require(x, character.only=TRUE))
+  {
+    install.packages(pkgs=x, repos="http://cran.r-project.org")
+    require(x, character.only=TRUE)
+  }
+}
+
+packages=c("vars","tsDyn","XML","RCurl","quantmod","PerformanceAnalytics","tidyverse","ggplot2","stats","tseries","forecast","kdensity","corrplot","readxl","fGarch","urca")
+for (i in 1:length(packages))
+{
+  EnsurePackage(packages[i])
+}
+
+
+#################################################################################################################
+#1. Download data for 5 stocks starting for period starting on 1-1-2009 till date.We use an R method to fetch the 
+#data directly.
+#################################################################################################################
+
+#################################################################################################################
+#Download and calculate daily and log returns of the 5 stocks over the period under study
+#################################################################################################################
+
+
+
+
+Symbols<- c("MMM", "GPC", "JNJ", "LOW", "PG")
+chooseStocks<-function(Symbols){
+  for (i in 1:1)
+  { 
+    ticker<-combn(Symbols, length(Symbols), FUN=NULL, simplify=FALSE)
+    Stocks = lapply(ticker[[1]], function(sym) {
+      getSymbols(sym, from="2009-01-01", auto.assign=FALSE)[,6]
+    })
+    returns = lapply(ticker[[1]], function(sym) {
+      dailyReturn(na.omit(getSymbols(sym, from="2009-01-01", auto.assign=FALSE)[,6]))
+    })
+    log_returns= lapply(ticker[[1]], function(sym) {
+      dailyReturn(na.omit(getSymbols(sym, from="2009-01-01", auto.assign=FALSE)[,6]), type='log')
+    })
+    
+    portfolio<-cbind(do.call(cbind, Stocks), do.call(cbind, returns), do.call(cbind, log_returns))
+    names=character(0)
+    return_names=character(0)
+    log_return_names=character(0)
+    for (i in 1:5)
+    {
+      names<-c(names, paste0(ticker[[1]][i],"_AdjClose")) 
+      return_names<-c(return_names, paste0(ticker[[1]][i],"_daily_return"))
+      log_return_names<-c(log_return_names, paste0("LDR_",ticker[[1]][i]))
+    }  
+    names(portfolio)<-c(names, return_names, log_return_names)
+  }
+  return(portfolio)
+}
+DailyData<-chooseStocks(Symbols)
+DailyData<-data.frame(Date=index(DailyData), coredata(DailyData))
+# head(DailyData,10) #FOR TesTing
+# Load varibles
+LDR_MMM = DailyData$LDR_MMM
+LDR_GPC = DailyData$LDR_GPC
+LDR_JNJ = DailyData$LDR_JNJ
+LDR_LOW = DailyData$LDR_LOW
+LDR_PG = DailyData$LDR_PG
+# head(LDR_MMM)
+# head(LDR_GPC)
+# head(LDR_JNJ)
+# head(LDR_LOW)
+# head(LDR_PG)
+# ########################################################
+# # This block calculates for MMM
+#
+# STEP 1
+# Fit an adequate model to the level of the varible
+# IMPORTANT
+# find order of AR process automatically via the AIC
+MMM_ar_model= ar(LDR_MMM)
+#  Print calculated model order
+MMM_ar_model$order
+# Fit and EVlauate the automatically chosen AR model:
+MMM_ar_model$order
+MMM_ar_model_fitted = arima(LDR_MMM, order = c(MMM_ar_model$order, 0,0))
+MMM_ar_model_fitted
+# test that erros are only white noise
+Box.test(MMM_ar_model_fitted$residuals,lag = 24, type = "Ljung")
+# Null is "No Autocorrelation in residuals"
+# plot ACF of ar_fitted_model residuals
+Acf(MMM_ar_model_fitted$residuals)
+# Observer ACF and try to fit a better model by including some MA terms in arima
+MMM_arma_model_fitted = arima(LDR_MMM, order = c(1,0,0))
+MMM_arma_model_fitted
+#
+# Step 2
+# Use residuals of ARMA model to test for autocorrelation using squared residuals
+MMM_residuals_squared = MMM_arma_model_fitted$residual^2
+Acf(MMM_residuals_squared, lag.max=100)
+Box.test(MMM_residuals_squared, lag =24, type = "Ljung")
+# Null is "No Autocorrelation in residuals"
+
+###############################################################
+# Note a good model should have
+# 1. have significant coefficients for all coefficients (Low P values)
+# 2. Jarque- Bera and Shapiro-Wilk should have large p values indicating the errors are normal
+# 3. Ljung-Box Tests for both residuals and residuals squared should have large p values indicating there is No Autocorrelation
+#
+#
+# Step 3
+# fit and evaluate an ARCH model
+MMM_ARCH_model= garchFit(formula = ~ arma(1,0) + garch(1,0), data= LDR_MMM, trace = F)
+Summary(MMM_ARCH_model)
+#
+# STEP4  if the  ARCH model doesn't pass its test then
+# fit and evaluate a Garch model
+#
+MMM_GARCH_model= garchFit(formula = ~ arma(0,0) + garch(1,1), data= LDR_MMM, trace = F)
+summary(MMM_GARCH_model)
+#
+# Look at Graph of model fit
+MMM_GARCH_Residuals = MMM_GARCH_model@residuals
+MMM_GARCH_Residuals = timeSeries(MMM_GARCH_Residuals)
+densityPlot(MMM_GARCH_Residuals)
+plot(MMM_GARCH_model, which=2)
+#
+# Step 5 (Optional) build a TGarch model to look for leverage effect
+MMM_TGARCH_model = garchFit(formula = ~ arma(0,0) + garch(1,1), data= LDR_MMM, leverage = T,
+                            trace = F)
+summary(MMM_TGARCH_model)
+
+# # Look at Graph of model fit and SD of residuals
+MMM_TGARCH_Residuals =MMM_TGARCH_model@residuals
+MMM_TGARCH_Residuals = timeSeries(MMM_TGARCH_Residuals)
+densityPlot(MMM_TGARCH_Residuals)
+plot(MMM_TGARCH_model, which=2)
+#
+
+# ########################################################
+# This block calculates for GPC
+# STEP 1
+# Fit an adequate model to the level of the varible
+# IMPORTANT
+# find order of AR process automatically via the AIC
+GPC_ar_model= ar(LDR_GPC)
+#  Print calculated model order
+GPC_ar_model$order
+# Fit and EVlauate the automatically chosen AR model:
+GPC_ar_model$order
+GPC_ar_model_fitted = arima(LDR_GPC, order = c(GPC_ar_model$order, 0,0))
+GPC_ar_model_fitted
+# test that erros are only white noise
+Box.test(GPC_ar_model_fitted$residuals,lag = 24, type = "Ljung")
+# Null is "No Autocorrelation in residuals"
+# plot ACF of ar_fitted_model residuals
+Acf(GPC_ar_model_fitted$residuals)
+# Observer ACF and try to fit a better model by including some MA terms in arima
+GPC_arma_model_fitted = arima(LDR_GPC, order = c(3,0,0))
+GPC_arma_model_fitted
+#
+# Step 2
+# Use residuals of ARMA model to test for autocorrelation using squared residuals
+GPC_residuals_squared = GPC_arma_model_fitted$residual^2
+Acf(GPC_residuals_squared, lag.max=100)
+Box.test(GPC_residuals_squared, lag =24, type = "Ljung")
+# Null is "No Autocorrelation in residuals"
+#
+###############################################################
+# Note a good model should have
+# 1. have significant coefficients for all coefficients (Low P values)
+# 2. Jarque- Bera and Shapiro-Wilk should have large p values indicating the errors are normal
+# 3. Ljung-Box Tests for both residuals and residuals squared should have large p values indicating there is No Autocorrelation
+#
+#
+# Step 3
+# fit and evaluate an ARCH model
+GPC_ARCH_model= garchFit(formula = ~ arma(0,0) + garch(4,0), data= LDR_GPC, trace = F)
+summary(GPC_ARCH_model)
+#
+# STEP4  if the  ARCH model dosent pass its test then
+# fit and evaluate a Garch model
+#
+GPC_GARCH_model= garchFit(formula = ~ arma(0,0) + garch(1,1), data= LDR_GPC, trace = F)
+summary(GPC_GARCH_model)
+#
+# Look at Graph of model fit
+GPC_GARCH_Residuals =GPC_GARCH_model@residuals
+GPC_GARCH_Residuals = timeSeries(GPC_GARCH_Residuals)
+densityPlot(GPC_GARCH_Residuals)
+plot(GPC_GARCH_model, which=2)
+
+# Step 5 (Optional) build a TGarch model to look for leverage effect
+GPC_TGARCH_model = garchFit(formula = ~ arma(0,0) + garch(1,1), data= LDR_GPC, leverage = T,
+                            trace = F)
+summary(GPC_TGARCH_model)
+
+# # Look at Graph of model fit and SD of residuals
+GPC_TGARCH_Residuals =GPC_TGARCH_model@residuals
+GPC_TGARCH_Residuals = timeSeries(GPC_TGARCH_Residuals)
+densityPlot(GPC_TGARCH_Residuals)
+plot(GPC_TGARCH_model, which=2)
+#
+
+########################################################
+# This block calculates for JNJ
+#
+# STEP 1
+# Fit an adequate model to the level of the varible
+# IMPORTANT
+# find order of AR process automatically via the AIC
+JNJ_ar_model= ar(LDR_JNJ)
+#  Print calculated model order
+JNJ_ar_model$order
+# Fit and EVlauate the automatically chosen AR model:
+JNJ_ar_model$order
+JNJ_ar_model_fitted = arima(LDR_JNJ, order = c(JNJ_ar_model$order, 0,0))
+JNJ_ar_model_fitted
+# test that erros are only white noise
+Box.test(JNJ_ar_model_fitted$residuals,lag = 24, type = "Ljung")
+# Null is "No Autocorrelation in residuals"
+# plot ACF of ar_fitted_model residuals
+Acf(JNJ_ar_model_fitted$residuals)
+# Observer ACF and try to fit a better model by including some MA terms in arima
+JNJ_arma_model_fitted = arima(LDR_JNJ, order = c(0,0,0))
+JNJ_arma_model_fitted
+#
+# Step 2
+# Use residuals of ARMA model to test for autocorrelation using squared residuals
+JNJ_residuals_squared = JNJ_arma_model_fitted$residual^2
+Acf(JNJ_residuals_squared, lag.max=100)
+Box.test(JNJ_residuals_squared, lag =24, type = "Ljung")
+#  Null is "No Autocorrelation in residuals"
+#
+###############################################################
+# Note a good model should have
+# 1. have significant coefficients for all coefficients (Low P values)
+# 2. Jarque- Bera and Shapiro-Wilk should have large p values indicating the errors are normal
+# 3. Ljung-Box Tests for both residuals and residuals squared should have large p values indicating there is No Autocorrelation
+#
+#
+# Step 3
+# fit and evaluate an ARCH model
+JNJ_ARCH_model= garchFit(formula = ~ arma(0,0) + garch(4,0), data= LDR_JNJ, trace = F)
+summary(JNJ_ARCH_model)
+#
+# STEP4  if the  ARCH model dosent pass its test then
+# fit and evaluate a Garch model
+#
+JNJ_GARCH_model= garchFit(formula = ~ arma(0,0) + garch(1,1), data= LDR_JNJ, trace = F)
+summary(JNJ_GARCH_model)
+#
+# Look at Graph of model fit
+JNJ_GARCH_Residuals =JNJ_GARCH_model@residuals
+JNJ_GARCH_Residuals = timeSeries(JNJ_GARCH_Residuals)
+densityPlot(JNJ_GARCH_Residuals)
+plot(JNJ_GARCH_model, which=2)
+
+# Step 5 (Optional) build a TGarch model to look for leverage effect
+JNJ_TGARCH_model = garchFit(formula = ~ arma(0,0) + garch(1,1), data= LDR_JNJ, leverage = T,
+                            trace = F)
+summary(JNJ_TGARCH_model)
+
+# # Look at Graph of model fit and SD of residuals
+JNJ_TGARCH_Residuals =JNJ_TGARCH_model@residuals
+JNJ_TGARCH_Residuals = timeSeries(JNJ_TGARCH_Residuals)
+densityPlot(JNJ_TGARCH_Residuals)
+plot(JNJ_TGARCH_model, which=2)
+#
+#
+########################################################
+This block calculates for LOW
+
+# STEP 1
+# Fit an adequate model to the level of the varible
+# IMPORTANT
+# find order of AR process automatically via the AIC
+LOW_ar_model= ar(LDR_LOW)
+# Print calculated model order
+LOW_ar_model$order
+# Fit and EVlauate the automatically chosen AR model:
+LOW_ar_model$order
+LOW_ar_model_fitted = arima(LDR_LOW, order = c(LOW_ar_model$order, 0,0))
+LOW_ar_model_fitted
+# test that erros are only white noise
+Box.test(LOW_ar_model_fitted$residuals,lag = 24, type = "Ljung")
+# Null is "No Autocorrelation in residuals"
+# plot ACF of ar_fitted_model residuals
+Acf(LOW_ar_model_fitted$residuals)
+# Observer ACF and try to fit a better model by including some MA terms in arima
+LOW_arma_model_fitted = arima(LDR_LOW, order = c(0,0,1))
+LOW_arma_model_fitted
+#
+# Step 2
+# Use residuals of ARMA model to test for autocorrelation using squared residuals
+LOW_residuals_squared = LOW_arma_model_fitted$residual^2
+Acf(LOW_residuals_squared, lag.max=100)
+Box.test(LOW_residuals_squared, lag =24, type = "Ljung")
+# Null is "No Autocorrelation in residuals"
+#
+###############################################################
+# Note a good model should have
+# 1. have significant coefficients for all coefficients (Low P values)
+# 2. Jarque- Bera and Shapiro-Wilk should have large p values indicating the errors are normal
+# 3. Ljung-Box Tests for both residuals and residuals squared should have large p values indicating there is No Autocorrelation
+#
+#
+# Step 3
+# fit and evaluate an ARCH model
+LOW_ARCH_model= garchFit(formula = ~ arma(0,0) + garch(3,0), data= LDR_LOW, trace = F)
+summary(LOW_ARCH_model)
+#
+# STEP4  if the  ARCH model dosent pass its test then
+# fit and evaluate a Garch model
+#
+LOW_GARCH_model= garchFit(formula = ~ arma(0,0) + garch(1,1), data= LDR_LOW, trace = F)
+summary(LOW_GARCH_model)
+#
+# Look at Graph of model fit
+LOW_GARCH_Residuals =LOW_GARCH_model@residuals
+LOW_GARCH_Residuals = timeSeries(LOW_GARCH_Residuals)
+densityPlot(LOW_GARCH_Residuals)
+plot(LOW_GARCH_model, which=2)
+#
+# Step 5 (Optional) build a TGarch model to look for leverage effect
+LOW_TGARCH_model = garchFit(formula = ~ arma(0,0) + garch(1,0), data= LDR_LOW, leverage = T,
+                           trace = F)
+summary(LOW_TGARCH_model)
+
+# # Look at Graph of model fit and SD of residuals
+LOW_TGARCH_Residuals =LOW_TGARCH_model@residuals
+LOW_TGARCH_Residuals = timeSeries(LOW_TGARCH_Residuals)
+densityPlot(LOW_TGARCH_Residuals)
+plot(LOW_TGARCH_model, which=2)
+#
+########################################################
+# This block calculates for PG
+# 
+# STEP 1
+# Fit an adequate model to the level of the varible
+# IMPORTANT
+# find order of AR process automatically via the AIC
+PG_ar_model= ar(LDR_PG)
+#  Print calculated model order
+PG_ar_model$order
+# Fit and EVlauate the automatically chosen AR model:
+PG_ar_model$order
+PG_ar_model_fitted = arima(LDR_PG, order = c(PG_ar_model$order, 0,0))
+PG_ar_model_fitted
+# test that erros are only white noise
+Box.test(PG_ar_model_fitted$residuals,lag = 24, type = "Ljung")
+# Null is "No Autocorrelation in residuals"
+# plot ACF of ar_fitted_model residuals
+Acf(PG_ar_model_fitted$residuals)
+# Observer ACF and try to fit a better model by including some MA terms in arima
+PG_arma_model_fitted = arima(LDR_PG, order = c(1,0,1))
+PG_arma_model_fitted
+
+# Step 2
+# Use residuals of ARMA model to test for autocorrelation using squared residuals
+PG_residuals_squared = PG_arma_model_fitted$residual^2
+Acf(PG_residuals_squared, lag.max=100)
+Box.test(PG_residuals_squared, lag =24, type = "Ljung")
+# Null is "No Autocorrelation in residuals"
+
+###############################################################
+# Note a good model should have
+# 1. have significant coefficients for all coefficients (Low P values)
+# 2. Jarque- Bera and Shapiro-Wilk should have large p values indicating the errors are normal
+# 3. Ljung-Box Tests for both residuals and residuals squared should have large p values indicating there is No Autocorrelation
+#
+
+# # Step 3
+# # fit and evaluate an ARCH model
+PG_ARCH_model= garchFit(formula = ~ arma(0,0) + garch(4,0), data= LDR_PG, trace = F)
+summary(PG_ARCH_model)
+#
+# # STEP4  if the  ARCH model dosent pass its test then
+# # fit and evaluate a Garch model
+#
+PG_GARCH_model= garchFit(formula = ~ arma(0,0) + garch(1,1), data= LDR_PG, trace = F)
+summary(PG_GARCH_model)
+#
+# # Look at Graph of model fit
+PG_GARCH_Residuals =PG_GARCH_model@residuals
+PG_GARCH_Residuals = timeSeries(PG_GARCH_Residuals)
+densityPlot(PG_GARCH_Residuals)
+plot(PG_GARCH_model, which=2)
+
+##  Step 5 (Optional) build a TGarch model to look for leverage effect
+PG_TGARCH_model = garchFit(formula = ~ arma(0,0) + garch(1,1), data= LDR_PG, leverage = T,
+                trace = F)
+summary(PG_TGARCH_model)
+
+# # Look at Graph of model fit and SD of residuals
+PG_TGARCH_Residuals =PG_TGARCH_model@residuals
+PG_TGARCH_Residuals = timeSeries(PG_TGARCH_Residuals)
+densityPlot(PG_TGARCH_Residuals)
+plot(PG_TGARCH_model, which=2)
+# 
+# #################################################################################
+#  Summary Graphs
+#  Garch Model Density Plots
+par(mfrow=c(3,2))
+densityPlot(MMM_GARCH_Residuals)
+densityPlot(GPC_GARCH_Residuals)
+densityPlot(JNJ_GARCH_Residuals)
+densityPlot(LOW_GARCH_Residuals)
+densityPlot(PG_GARCH_Residuals)
+
+# Garch Model
+myData <- data.frame(LOW_GARCH_model@sigma.t,
+                     PG_GARCH_model@sigma.t,
+                     MMM_GARCH_model@sigma.t,
+                     GPC_GARCH_model@sigma.t,
+                     JNJ_GARCH_model@sigma.t
+                     )
+ts.plot(myData,ylab="Conditional SD", main="Garch Model: Conditional SDs for LOW/PG/MMM/GPC/JNJ",gpars= list(col=rainbow(5)))
+legend("topright", legend = names(myData), col = rainbow(5), lty = 1)
+
+
+#  TGarch Model Density Plots
+par(mfrow=c(3,2))
+densityPlot(MMM_TGARCH_Residuals)
+densityPlot(GPC_TGARCH_Residuals)
+densityPlot(JNJ_TGARCH_Residuals)
+densityPlot(LOW_TGARCH_Residuals)
+densityPlot(PG_TGARCH_Residuals)
+# Garch Model
+
+plot.new()
+myTData <- data.frame(LOW_TGARCH_model@sigma.t,
+                     PG_TGARCH_model@sigma.t,
+                     MMM_TGARCH_model@sigma.t,
+                     GPC_TGARCH_model@sigma.t,
+                     JNJ_TGARCH_model@sigma.t
+                     )
+ts.plot(myTData,ylab="Conditional SD", main="TGarch Model: Conditional SDs for LOW/PG/MMM/GPC/JNJ",gpars= list(col=rainbow(30)[c(3,26,13,18,23)]))
+legend("topright", legend = names(myTData), col = rainbow(30)[c(3,26,13,18,23)], lty = 1)
+
+
+
+
+#=====================================================#
+#=========== Multivariate Analysis ===================#
+#=====================================================#
+
+MMM = DailyData$MMM_AdjClose
+GPC = DailyData$GPC_AdjClose
+JNJ = DailyData$JNJ_AdjClose
+LOW = DailyData$LOW_AdjClose
+PG = DailyData$PG_AdjClose
+LDR_MMM = DailyData$LDR_MMM
+LDR_GPC = DailyData$LDR_GPC
+LDR_JNJ = DailyData$LDR_JNJ
+LDR_LOW = DailyData$LDR_LOW
+LDR_PG = DailyData$LDR_PG
+ 
+
+LDR_pflo= cbind(LDR_MMM, LDR_GPC, LDR_JNJ, LDR_LOW, LDR_PG) 
+
+# simple correlations:
+cor(LDR_pflo)
+
+# estimate a Vector Auto regressive
+VAR_model = VAR(LDR_pflo, lag.max = 12, type = "none", ic ="AIC")
+summary(VAR_model)
+
+# compute and plot the impulse response functions
+VAR_irf = irf(VAR_model, n.ahead = 13, boot = T, ci = 0.95)
+plot(VAR_irf)
+
+# compute and plot the forecast error variance decomposition
+VAR_fevd = fevd(VAR_model, n.ahead = 13)
+plot(VAR_fevd)
+
+# Obtain the residuals
+resids = residuals(VAR_model)
+resid1 = resids[,1]
+resid2 = resids[,2]
+resid3 = resids[,3]
+resid4 = resids[,4]
+resid5 = resids[,5]
+#head(resids)
+#head(resid1)
+
+#  create and view correlogram
+par(mfrow=c(2,2))
+ccf(resid1, resid2, lag.max= 13, type = "correlation", plot = T)
+ccf(resid1, resid3, lag.max= 13, type = "correlation", plot = T)
+ccf(resid1, resid4, lag.max= 13, type = "correlation", plot = T)
+ccf(resid1, resid5, lag.max= 13, type = "correlation", plot = T)
+
+pflo = cbind(MMM, GPC, JNJ, LOW, PG)
+
+# johansen test
+jotest1=ca.jo(pflo, type = "eigen", K=9, ecdet = "none", spec="longrun")
+summary(jotest1)
+jotest2=ca.jo(pflo, type = "trace", K=9, ecdet = "none", spec="longrun")
+summary(jotest2)
+
+# Fit cointegration VECM
+VECM_fit = VECM(pflo,1,r=1, include = "const", estim = "ML", LRinclude ="none")
+summary(VECM_fit)
+
+# Apply PCA to the changes in the LDRs
+pca= princomp(LDR_pflo)
+
+# plot the variance of the components
+plot(pca)
+
+
