@@ -512,5 +512,3 @@ pca= princomp(LDR_pflo)
 
 # plot the variance of the components
 plot(pca)
-
-
